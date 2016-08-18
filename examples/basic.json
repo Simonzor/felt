@@ -12,6 +12,13 @@
         {
             "action": "open_url",
             "value": "http://felt.sava.be/login.php"
-        }
+        },
+        {
+            "action" : "sleep",
+            "value" : {
+                "min": 90000,
+                "max": 120000
+            }
+        },
     ]
 }

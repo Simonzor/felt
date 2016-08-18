@@ -147,6 +147,13 @@ setTimeout(exit, 120000);
  */
 action = 0;
 
+// If a new page is created, automatically switch to it
+page.onPageCreated = function(newPage) {
+    newPage.onLoadFinished = function(){
+        page = newPage;
+    };
+}
+
 /**
  * Scenario functionality.
  */
@@ -196,6 +203,12 @@ function nextAction() {
         }
 
         if (options.screenshot === true) {
+            //Increase height to capture full page
+            var pageHeight = page.evaluate(function() {
+                return document.body.scrollHeight;
+            });
+            page.viewportSize = { width: 1920, height: pageHeight };
+            page.clipRect = { top: 0, left: 0, width: 1920, height: pageHeight };
             page.render('screenshot_' + action + '.png');
         }
 
@@ -214,8 +227,30 @@ function nextAction() {
  * @param {string} value    The value.
  */
 function set_value(selector, value) {
-    page.evaluate(function(selector, value) {
-        document.querySelector(selector).value = value;
+    //Randomly set a value between two values
+    if (value instanceof Array) {
+        value = value[Math.floor(Math.random() * value.length)];
+        output("Using value for set_value: "+ value);
+    }
+
+    //This helps when setting values in Angular2 elements
+    page.evaluate(function(selector, value){
+        var sel = document.querySelector(selector);
+        sel.value = value;
+
+        var eventType;
+        switch(sel.tagName) {
+            case "INPUT":
+                eventType = "input";
+                break;
+            default:
+                eventType = "change";
+                break;
+        }
+
+        var event = document.createEvent("UIEvent");
+        event.initUIEvent(eventType, true, true, window, 0);
+        sel.dispatchEvent(event);
     }, selector, value);
 }
 
@@ -240,19 +275,10 @@ function click(selector) {
         var message = '';
         var elements = document.querySelectorAll(selector);
         if (elements !== null && elements.length === 1) {
-            // TODO: click on an <a> element is not supported in all browsers by default.
-            // find a more clean solution.
-            if (typeof elements[0].click === 'function') {
-                elements[0].click();
-            } else if (elements[0].fireEvent) {
-                elements[0].fireEvent('onclick');
-            } else {
-                var evObj = document.createEvent('Events');
-                evObj.initEvent('click', true, false);
-                elements[0].dispatchEvent(evObj);
-            }
+            clickElement(elements[0]);
         } else if (elements !== null && elements.length > 1) {
             message = 'Selector ' + selector + ' matches more than 1 element, clicking the first element.';
+            clickElement(elements[0]);
         } else {
             message = 'Selector ' + selector + ' does not match any element in the dom';
         }
@@ -262,6 +288,20 @@ function click(selector) {
 
     if (returnedValue !== '') {
         warn(returnedValue);
+    }
+}
+
+function clickElement(element) {
+    // TODO: click on an <a> element is not supported in all browsers by default.
+    // find a more clean solution.
+    if (typeof element.click === 'function') {
+        element.click();
+    } else if (element.fireEvent) {
+        element.fireEvent('onclick');
+    } else {
+        var evObj = document.createEvent('Events');
+        evObj.initEvent('click', true, false);
+        element.dispatchEvent(evObj);
     }
 }
 
@@ -329,6 +369,13 @@ function wait_for_element(selector) {
  * @param  {number} value value of sleep in ms.
  */
 function sleep(value) {
+    //Randomly select a sleep time between two values
+    if (value instanceof Object) {
+        var min = value.min;
+        var max = value.max;
+        value = Math.floor(Math.random() * (max - min) ) + min;
+    }
+
     pageReady = false;
     setTimeout(function() {
         pageReady = true;
